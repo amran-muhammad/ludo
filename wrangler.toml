@@ -1,0 +1,17 @@
+name = "ludo-multiplayer"
+main = "dist/_worker.js/index.js"
+compatibility_date = "2024-09-02"
+compatibility_flags = ["nodejs_compat"]
+
+[durable_objects]
+bindings = [
+  { name = "GAME_ROOM", class_name = "GameRoom" }
+]
+
+[[migrations]]
+tag = "v1"
+new_classes = ["GameRoom"]
+
+# Serve static assets (CSS, JS, images) from dist/_astro
+[assets]
+directory = "dist"

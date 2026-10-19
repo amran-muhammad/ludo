@@ -1,0 +1,748 @@
+---
+const { id } = Astro.params;
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ludo Game – {id}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+
+    body {
+      background: #1a1a2e;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: #eee;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 12px;
+      gap: 12px;
+    }
+
+    /* ── Top bar ── */
+    #topbar {
+      width: 100%;
+      max-width: 720px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    #topbar h1 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #e94560, #5c7cfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    #shareBar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #16213e;
+      border: 1px solid #0f3460;
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: .78rem;
+      color: #aaa;
+    }
+    #shareUrl {
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #5c7cfa;
+      cursor: pointer;
+    }
+    #copyBtn {
+      background: #0f3460;
+      border: none;
+      border-radius: 4px;
+      color: #eee;
+      padding: 3px 8px;
+      font-size: .75rem;
+      cursor: pointer;
+    }
+    #copyBtn:hover { background: #1a4d8f; }
+
+    /* ── Main layout ── */
+    #main {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      width: 100%;
+      max-width: 900px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    /* ── Board ── */
+    #boardWrap {
+      position: relative;
+    }
+    #board {
+      display: block;
+      border-radius: 8px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.5);
+      cursor: pointer;
+    }
+
+    /* ── Sidebar ── */
+    #sidebar {
+      width: 200px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .panel {
+      background: #16213e;
+      border: 1px solid #0f3460;
+      border-radius: 10px;
+      padding: 14px;
+    }
+
+    .panel h3 {
+      font-size: .8rem;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: #666;
+      margin-bottom: 10px;
+    }
+
+    /* ── Player list ── */
+    .player-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 0;
+      border-bottom: 1px solid #1a2a40;
+      font-size: .82rem;
+    }
+    .player-row:last-child { border-bottom: none; }
+    .player-dot {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .player-row .pname { flex: 1; }
+    .player-row .pturn {
+      font-size: .7rem;
+      background: #e94560;
+      color: #fff;
+      border-radius: 4px;
+      padding: 1px 6px;
+    }
+    .player-row .pbot { color: #555; font-size: .7rem; }
+
+    /* ── Dice ── */
+    #diceSection { text-align: center; }
+    #diceDisplay {
+      font-size: 3rem;
+      line-height: 1;
+      margin: 6px 0;
+      min-height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform .15s;
+    }
+    #diceDisplay.rolled { transform: scale(1.15); }
+
+    #rollBtn {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      background: linear-gradient(135deg, #e94560, #c23152);
+      color: #fff;
+      font-size: .9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    #rollBtn:disabled { opacity: .35; cursor: not-allowed; }
+    #rollBtn:not(:disabled):hover { opacity: .88; }
+
+    /* ── Status ── */
+    #statusMsg {
+      font-size: .82rem;
+      color: #aaa;
+      text-align: center;
+      padding: 4px 0;
+      min-height: 36px;
+    }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%) translateY(60px);
+      background: #e94560;
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 24px;
+      font-size: .88rem;
+      font-weight: 600;
+      pointer-events: none;
+      transition: transform .3s cubic-bezier(.34,1.56,.64,1);
+      z-index: 99;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* ── Winner overlay ── */
+    #winOverlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.75);
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+    #winOverlay.show { display: flex; }
+    #winBox {
+      background: #16213e;
+      border: 2px solid #0f3460;
+      border-radius: 16px;
+      padding: 40px 48px;
+      text-align: center;
+    }
+    #winBox h2 { font-size: 1.8rem; margin-bottom: 8px; }
+    #winBox p { color: #aaa; margin-bottom: 24px; }
+    #playAgainBtn {
+      padding: 12px 28px;
+      border-radius: 8px;
+      border: none;
+      background: #e94560;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    @media (max-width: 560px) {
+      #sidebar { width: 100%; flex-direction: row; flex-wrap: wrap; }
+      .panel { flex: 1; min-width: 140px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Top bar -->
+  <div id="topbar">
+    <h1>🎲 Ludo Online</h1>
+    <div id="shareBar">
+      <span>🔗</span>
+      <span id="shareUrl" title="Click to copy"></span>
+      <button id="copyBtn">Copy</button>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div id="main">
+    <div id="boardWrap">
+      <canvas id="board"></canvas>
+    </div>
+
+    <div id="sidebar">
+      <!-- Players -->
+      <div class="panel">
+        <h3>Players</h3>
+        <div id="playerList"></div>
+      </div>
+
+      <!-- Dice -->
+      <div class="panel" id="diceSection">
+        <h3>Dice</h3>
+        <div id="diceDisplay">⬜</div>
+        <button id="rollBtn" disabled>Roll Dice</button>
+        <p id="statusMsg">Connecting…</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Winner overlay -->
+  <div id="winOverlay">
+    <div id="winBox">
+      <h2 id="winTitle">🏆 Winner!</h2>
+      <p id="winSubtitle"></p>
+      <button id="playAgainBtn" onclick="window.location.href='/'">Play Again</button>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast"></div>
+
+  <script define:vars={{ gameId: id }}>
+// ═══════════════════════════════════════════════════════════════════════════
+//  CLIENT-SIDE LUDO ENGINE
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── Board constants ─────────────────────────────────────────────────────────
+const CELL = 40;          // pixels per grid cell
+const BOARD_PX = 15 * CELL; // 600px
+
+const COLORS = ['red', 'green', 'yellow', 'blue'];
+
+const COLOR_HEX = { red: '#e94560', green: '#27ae60', yellow: '#f39c12', blue: '#3498db' };
+const COLOR_LIGHT = { red: '#fde8ec', green: '#d5f5e3', yellow: '#fef9e7', blue: '#d6eaf8' };
+const COLOR_DARK = { red: '#922b3a', green: '#1a7a40', yellow: '#d4890a', blue: '#1f6fa6' };
+
+// Main track [row, col][]
+const BOARD_PATH = [
+  [6,1],[6,2],[6,3],[6,4],[6,5],
+  [5,6],[4,6],[3,6],[2,6],[1,6],[0,6],
+  [0,7],[0,8],
+  [1,8],[2,8],[3,8],[4,8],[5,8],
+  [6,9],[6,10],[6,11],[6,12],[6,13],[6,14],
+  [7,14],[8,14],
+  [8,13],[8,12],[8,11],[8,10],[8,9],
+  [9,8],[10,8],[11,8],[12,8],[13,8],[14,8],
+  [14,7],[14,6],
+  [13,6],[12,6],[11,6],[10,6],[9,6],
+  [8,5],[8,4],[8,3],[8,2],[8,1],[8,0],
+  [7,0],[6,0],
+];
+const SAFE_SET = new Set([0,8,13,21,26,34,39,47]);
+const COLOR_START = { red:0, green:13, yellow:26, blue:39 };
+const HOME_COLUMNS = {
+  red:    [[7,1],[7,2],[7,3],[7,4],[7,5],[7,6]],
+  green:  [[1,7],[2,7],[3,7],[4,7],[5,7],[6,7]],
+  yellow: [[7,13],[7,12],[7,11],[7,10],[7,9],[7,8]],
+  blue:   [[13,7],[12,7],[11,7],[10,7],[9,7],[8,7]],
+};
+const HOME_BASES = {
+  red:    [[1,1],[1,3],[3,1],[3,3]],
+  green:  [[1,11],[1,13],[3,11],[3,13]],
+  yellow: [[11,11],[11,13],[13,11],[13,13]],
+  blue:   [[11,1],[11,3],[13,1],[13,3]],
+};
+
+function getMainPathIndex(color, pos) {
+  return (pos + COLOR_START[color]) % 52;
+}
+function getTokenCoords(color, pos) {
+  if (pos === -1 || pos >= 58) return null;
+  if (pos <= 51) return BOARD_PATH[getMainPathIndex(color, pos)];
+  return HOME_COLUMNS[color][pos - 52];
+}
+
+// ── Board renderer ──────────────────────────────────────────────────────────
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d');
+canvas.width = canvas.height = BOARD_PX;
+
+// Determine which cells belong to which zone
+function cellColor(r, c) {
+  // Home bases
+  if (r<=5 && c<=5) return 'red';
+  if (r<=5 && c>=9) return 'green';
+  if (r>=9 && c>=9) return 'yellow';
+  if (r>=9 && c<=5) return 'blue';
+
+  // Home columns (center strips)
+  if (r===7 && c>=1 && c<=5) return 'red';
+  if (c===7 && r>=1 && r<=5) return 'green';
+  if (r===7 && c>=9 && c<=13) return 'yellow';
+  if (c===7 && r>=9 && r<=13) return 'blue';
+
+  // Center 3×3
+  if (r>=6 && r<=8 && c>=6 && c<=8) return 'center';
+
+  // Safe squares on path
+  const pathIdx = BOARD_PATH.findIndex(([pr,pc]) => pr===r && pc===c);
+  if (pathIdx !== -1 && SAFE_SET.has(pathIdx)) return 'safe';
+
+  return 'path';
+}
+
+const ZONE_COLORS = {
+  red:    '#fde8ec',
+  green:  '#d5f5e3',
+  yellow: '#fef9e7',
+  blue:   '#d6eaf8',
+  path:   '#f5f5f5',
+  safe:   '#fffde7',
+  center: null, // triangle gradient handled separately
+};
+
+function drawBoard() {
+  ctx.clearRect(0, 0, BOARD_PX, BOARD_PX);
+
+  // Background
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, BOARD_PX, BOARD_PX);
+
+  // Draw cells
+  for (let r = 0; r < 15; r++) {
+    for (let c = 0; c < 15; c++) {
+      const zone = cellColor(r, c);
+      if (zone === 'center') continue; // handled separately
+      const x = c * CELL, y = r * CELL;
+      ctx.fillStyle = ZONE_COLORS[zone] || '#f5f5f5';
+      ctx.fillRect(x+1, y+1, CELL-2, CELL-2);
+
+      // Star marker on safe squares
+      if (zone === 'safe') {
+        ctx.fillStyle = '#ffb300';
+        ctx.font = `${CELL*0.5}px serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('★', x + CELL/2, y + CELL/2);
+      }
+
+      // Home base circles
+      for (const color of COLORS) {
+        for (const [br, bc] of HOME_BASES[color]) {
+          if (br===r && bc===c) {
+            ctx.fillStyle = COLOR_HEX[color];
+            ctx.beginPath();
+            ctx.arc(x + CELL/2, y + CELL/2, CELL*0.38, 0, Math.PI*2);
+            ctx.fill();
+            ctx.strokeStyle = COLOR_DARK[color];
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+          }
+        }
+      }
+
+      // Grid line
+      ctx.strokeStyle = '#ccc';
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(x, y, CELL, CELL);
+    }
+  }
+
+  // Center triangle
+  const cx = 7 * CELL, cy = 7 * CELL;
+  const s = CELL; // half of 3-cell width
+  const triData = [
+    { color: '#e94560', pts: [[cx,cy],[cx+3*CELL,cy],[cx+3*CELL/2,cy+3*CELL/2]] },
+    { color: '#27ae60', pts: [[cx,cy],[cx+3*CELL/2,cy+3*CELL/2],[cx,cy+3*CELL]] },
+    { color: '#f39c12', pts: [[cx,cy+3*CELL],[cx+3*CELL,cy+3*CELL],[cx+3*CELL/2,cy+3*CELL/2]] },
+    { color: '#3498db', pts: [[cx+3*CELL,cy],[cx+3*CELL,cy+3*CELL],[cx+3*CELL/2,cy+3*CELL/2]] },
+  ];
+  for (const { color, pts } of triData) {
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+  }
+  // Home column strip colors
+  for (const color of COLORS) {
+    for (const [r,c] of HOME_COLUMNS[color].slice(0,-1)) {
+      const x = c*CELL, y = r*CELL;
+      ctx.fillStyle = COLOR_HEX[color];
+      ctx.fillRect(x+1, y+1, CELL-2, CELL-2);
+      ctx.strokeStyle = '#ccc';
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(x, y, CELL, CELL);
+    }
+  }
+}
+
+// ── Token drawing ───────────────────────────────────────────────────────────
+function drawTokens(state, myColor, movablePieces) {
+  if (!state) return;
+
+  // Track occupied cells to stack multiple tokens
+  const occupied = {};
+
+  for (const color of COLORS) {
+    const player = state.players[color];
+    for (let i = 0; i < 4; i++) {
+      const pos = player.tokens[i].position;
+      const coords = getTokenCoords(color, pos);
+      let cx, cy;
+
+      if (pos === -1) {
+        // In home base
+        const [br, bc] = HOME_BASES[color][i];
+        cx = (bc + 0.5) * CELL;
+        cy = (br + 0.5) * CELL;
+      } else if (pos >= 58 || coords === null) {
+        // Won — draw in center with offset per color
+        const offsets = { red:[-8,-8], green:[8,-8], yellow:[8,8], blue:[-8,8] };
+        const [ox,oy] = offsets[color];
+        cx = 7.5*CELL + ox;
+        cy = 7.5*CELL + oy;
+      } else {
+        const [r,c] = coords;
+        const key = `${r},${c}`;
+        const n = (occupied[key] = (occupied[key]||0));
+        occupied[key]++;
+        // Small offset when stacked
+        const dx = (n % 2) * 10 - 5;
+        const dy = Math.floor(n / 2) * 10 - 5;
+        cx = (c + 0.5) * CELL + dx;
+        cy = (r + 0.5) * CELL + dy;
+      }
+
+      const r = CELL * 0.3;
+      const isMovable = state.currentTurn === color &&
+                        myColor === color &&
+                        movablePieces.includes(i) &&
+                        pos !== 58;
+
+      // Glow for movable tokens
+      if (isMovable) {
+        ctx.shadowColor = '#fff';
+        ctx.shadowBlur = 10;
+      }
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI*2);
+      ctx.fillStyle = COLOR_HEX[color];
+      ctx.fill();
+      ctx.strokeStyle = isMovable ? '#fff' : COLOR_DARK[color];
+      ctx.lineWidth = isMovable ? 2.5 : 1.5;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Token number
+      ctx.fillStyle = '#fff';
+      ctx.font = `bold ${CELL*0.25}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(i + 1, cx, cy);
+    }
+  }
+}
+
+// ── Dice face glyphs ────────────────────────────────────────────────────────
+const DICE_FACE = ['','⚀','⚁','⚂','⚃','⚄','⚅'];
+
+// ── Game state ──────────────────────────────────────────────────────────────
+let state = null;
+let myColor = null;
+let movablePieces = [];
+
+function render() {
+  drawBoard();
+  drawTokens(state, myColor, movablePieces);
+}
+
+// ── UI helpers ──────────────────────────────────────────────────────────────
+const rollBtn = document.getElementById('rollBtn');
+const diceDisplay = document.getElementById('diceDisplay');
+const statusMsg = document.getElementById('statusMsg');
+const playerList = document.getElementById('playerList');
+const winOverlay = document.getElementById('winOverlay');
+const winTitle = document.getElementById('winTitle');
+const winSubtitle = document.getElementById('winSubtitle');
+const toast = document.getElementById('toast');
+
+function showToast(msg, ms = 2500) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), ms);
+}
+
+function updateUI() {
+  if (!state) return;
+
+  // Player list
+  playerList.innerHTML = COLORS.map(c => {
+    const p = state.players[c];
+    const isTurn = state.currentTurn === c && state.phase === 'playing';
+    const won = p.tokens.every(t => t.position >= 58);
+    return `<div class="player-row">
+      <div class="player-dot" style="background:${COLOR_HEX[c]}"></div>
+      <span class="pname">${p.name}${won ? ' 🏆' : ''}</span>
+      ${isTurn ? '<span class="pturn">▶</span>' : ''}
+      ${p.type === 'bot' ? '<span class="pbot">BOT</span>' : ''}
+    </div>`;
+  }).join('');
+
+  // Dice
+  diceDisplay.textContent = state.dice ? DICE_FACE[state.dice] : '⬜';
+  diceDisplay.classList.toggle('rolled', !!state.dice);
+
+  // Roll button
+  const myTurn = myColor && state.currentTurn === myColor && state.phase === 'playing';
+  rollBtn.disabled = !myTurn || state.diceRolled;
+
+  // Status message
+  if (state.phase === 'waiting') {
+    statusMsg.textContent = 'Waiting for players…';
+  } else if (state.phase === 'finished') {
+    statusMsg.textContent = `${state.players[state.winner].name} wins! 🏆`;
+  } else {
+    const p = state.players[state.currentTurn];
+    if (state.currentTurn === myColor) {
+      statusMsg.textContent = state.diceRolled
+        ? (movablePieces.length ? 'Tap a highlighted token to move!' : 'No moves available.')
+        : 'Your turn — Roll the dice!';
+    } else {
+      statusMsg.textContent = `${p.name}'s turn${p.type === 'bot' ? ' (bot thinking…)' : '…'}`;
+    }
+  }
+}
+
+// ── Share link ──────────────────────────────────────────────────────────────
+const shareUrl = `${location.origin}/game/${gameId}`;
+document.getElementById('shareUrl').textContent = shareUrl;
+document.getElementById('shareUrl').title = 'Click to copy';
+document.getElementById('copyBtn').addEventListener('click', () => {
+  navigator.clipboard.writeText(shareUrl).then(() => showToast('Link copied! Share it to invite friends.'));
+});
+document.getElementById('shareUrl').addEventListener('click', () => {
+  navigator.clipboard.writeText(shareUrl).then(() => showToast('Link copied!'));
+});
+
+// ── WebSocket ───────────────────────────────────────────────────────────────
+let ws = null;
+
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}/api/ws/${gameId}`);
+
+  ws.onopen = () => {
+    const params = new URLSearchParams(location.search);
+    const name = params.get('name') || localStorage.getItem('ludo_name') || 'Player';
+    ws.send(JSON.stringify({ type: 'join', name }));
+    statusMsg.textContent = 'Connected — joining…';
+  };
+
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    handleMsg(msg);
+  };
+
+  ws.onclose = () => {
+    statusMsg.textContent = 'Disconnected — reconnecting…';
+    setTimeout(connect, 2000);
+  };
+
+  ws.onerror = () => ws.close();
+}
+
+function handleMsg(msg) {
+  switch (msg.type) {
+    case 'joined':
+      myColor = msg.color;
+      state = msg.state;
+      movablePieces = [];
+      showToast(`You are ${COLOR_HEX[myColor] ? myColor.charAt(0).toUpperCase() + myColor.slice(1) : myColor}!`);
+      render();
+      updateUI();
+      break;
+
+    case 'playerJoined':
+      state = msg.state;
+      showToast(`${state.players[msg.color].name} joined as ${msg.color}!`);
+      render();
+      updateUI();
+      break;
+
+    case 'playerLeft':
+      state = msg.state;
+      showToast(`A player left — bot takes over.`);
+      render();
+      updateUI();
+      break;
+
+    case 'diceRolled':
+      if (state) {
+        state.dice = msg.dice;
+        state.diceRolled = true;
+        state.currentTurn = msg.color;
+        movablePieces = (msg.color === myColor) ? (msg.movablePieces || []) : [];
+        state.movablePieces = msg.movablePieces || [];
+      }
+      diceDisplay.textContent = DICE_FACE[msg.dice];
+      diceDisplay.classList.add('rolled');
+      setTimeout(() => diceDisplay.classList.remove('rolled'), 200);
+      render();
+      updateUI();
+      break;
+
+    case 'gameState':
+      state = msg.state;
+      movablePieces = (state.currentTurn === myColor && state.diceRolled)
+        ? state.movablePieces
+        : [];
+      render();
+      updateUI();
+      break;
+
+    case 'gameOver':
+      state = msg.state || state;
+      if (state) state.phase = 'finished';
+      render();
+      updateUI();
+      showWinner(msg.winner);
+      break;
+
+    case 'error':
+      showToast(msg.message || 'An error occurred.');
+      break;
+  }
+}
+
+function showWinner(winnerColor) {
+  const name = state?.players[winnerColor]?.name || winnerColor;
+  winTitle.textContent = `🏆 ${name} Wins!`;
+  winSubtitle.textContent = `Congratulations on a great game!`;
+  winTitle.style.color = COLOR_HEX[winnerColor] || '#eee';
+  winOverlay.classList.add('show');
+}
+
+// ── Controls ────────────────────────────────────────────────────────────────
+rollBtn.addEventListener('click', () => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'rollDice' }));
+});
+
+canvas.addEventListener('click', (e) => {
+  if (!state || !myColor || state.currentTurn !== myColor || !state.diceRolled) return;
+  if (!movablePieces.length) return;
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const mx = (e.clientX - rect.left) * scaleX;
+  const my = (e.clientY - rect.top) * scaleX;
+
+  // Check which token was clicked
+  const player = state.players[myColor];
+  for (const idx of movablePieces) {
+    const pos = player.tokens[idx].position;
+    let tx, ty;
+
+    if (pos === -1) {
+      const [br, bc] = HOME_BASES[myColor][idx];
+      tx = (bc + 0.5) * CELL;
+      ty = (br + 0.5) * CELL;
+    } else {
+      const coords = getTokenCoords(myColor, pos);
+      if (!coords) continue;
+      tx = (coords[1] + 0.5) * CELL;
+      ty = (coords[0] + 0.5) * CELL;
+    }
+
+    const dist = Math.hypot(mx - tx, my - ty);
+    if (dist < CELL * 0.42) {
+      ws.send(JSON.stringify({ type: 'move', tokenIndex: idx }));
+      movablePieces = [];
+      return;
+    }
+  }
+});
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+drawBoard();
+connect();
+  </script>
+</body>
+</html>

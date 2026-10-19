@@ -1,0 +1,12 @@
+{
+  "extends": "astro/tsconfigs/strict",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "types": ["@cloudflare/workers-types/2023-07-01", "astro/client"],
+    "strict": true,
+    "noEmit": true
+  },
+  "include": ["src", ".astro"]
+}
